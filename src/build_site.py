@@ -62,7 +62,7 @@ def fix_paths(section, bg_uri, logo_uri):
 EDITABLE_BY_STYLE = [
     ("font-size:21px;font-weight:700;background:#9C1C33;border-radius:999px;padding:6px 20px", "date"),
     ("font-size:76px;font-weight:700;line-height:1;margin-top:5px;letter-spacing:-2px", "total"),
-    ("font-size:19px;color:#E4E0DC;overflow-wrap:anywhere", "gov-location"),
+    ("font-size:19px;color:#E4E0DC;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden", "gov-location"),
 ]
 EDITABLE_BY_STYLE_ORDERED = [
     # (style, [data-keys in DOM order of appearance])
