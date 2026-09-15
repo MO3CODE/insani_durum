@@ -187,6 +187,7 @@
 <div class="toolbar no-print">
   <span class="label">انقر على أي رقم في التقرير لتعديله — </span>
   <button onclick="resetNumbers()">إعادة الأرقام الأصلية</button>
+  <button onclick="changeEditPassword()">كلمة مرور التعديل</button>
   <span class="label" id="sync-status"></span>
   <span class="label">تصدير:</span>
   <button onclick="exportPng('page-ar', 'الوضع الإنساني - اليمن 03 – 07 سبتمبر 2026.png')">صورة PNG (عربي)</button>
@@ -645,6 +646,29 @@ function getStoredPassword() {
 function setStoredPassword(pw) {
   try { localStorage.setItem(EDIT_PASSWORD_KEY, pw); } catch (e) {}
 }
+function clearStoredPassword() {
+  try { localStorage.removeItem(EDIT_PASSWORD_KEY); } catch (e) {}
+}
+
+// A failed sync used to show only a small grey line in the toolbar, which is
+// easy to miss — so an edit could silently stay on one device. Say it loudly,
+// once, until the next successful save.
+let syncWarningShown = false;
+function failLoudly(msg) {
+  if (syncWarningShown) return;
+  syncWarningShown = true;
+  setTimeout(function () { alert(msg); }, 50);
+}
+
+// Lets an editor set or clear the shared-edit password deliberately, instead
+// of only being asked after a save has already failed.
+function changeEditPassword() {
+  const pw = prompt('كلمة مرور التعديل المشترك (اتركها فارغة لمسحها):', getStoredPassword());
+  if (pw === null) return;
+  if (pw) { setStoredPassword(pw); } else { clearStoredPassword(); }
+  syncWarningShown = false;
+  setSyncStatus(pw ? 'تم حفظ كلمة المرور في هذا المتصفح' : 'تم مسح كلمة المرور');
+}
 
 function setSyncStatus(text, isError) {
   const el = document.getElementById('sync-status');
@@ -657,7 +681,8 @@ function setSyncStatus(text, isError) {
 // JSON file in the GitHub repo) so every visitor sees the same values —
 // not just the browser that made the edit. Falls back to local-only
 // storage (already saved via localStorage on 'input') if this fails.
-async function syncToServer(key, value) {
+async function syncToServer(key, value, attempt) {
+  attempt = attempt || 0;
   try {
     setSyncStatus('جارٍ الحفظ للجميع…');
     const res = await fetch('/api/data', {
@@ -666,19 +691,30 @@ async function syncToServer(key, value) {
       body: JSON.stringify({ key, value }),
     });
     if (res.status === 401) {
-      const pw = prompt('كلمة مرور التعديل المشترك:');
-      if (pw) { setStoredPassword(pw); return syncToServer(key, value); }
-      setSyncStatus('لم يُحفظ للجميع (كلمة مرور مطلوبة) — محفوظ في هذا الجهاز فقط', true);
+      // A wrong password was cached in this browser: drop it, otherwise every
+      // later save keeps failing against the same bad value.
+      clearStoredPassword();
+      if (attempt < 3) {
+        const pw = prompt(attempt === 0
+          ? 'كلمة مرور التعديل المشترك:'
+          : 'كلمة المرور غير صحيحة. حاول مرة أخرى:');
+        if (pw) { setStoredPassword(pw); return syncToServer(key, value, attempt + 1); }
+      }
+      failLoudly('لم يُحفظ للجميع: كلمة مرور التعديل غير صحيحة أو لم تُدخل. التعديل محفوظ في هذا المتصفح فقط، ولن يظهر لأي شخص آخر.');
+      setSyncStatus('لم يُحفظ للجميع (كلمة المرور غير صحيحة) — محفوظ في هذا الجهاز فقط', true);
       return;
     }
     if (!res.ok) throw new Error('bad status ' + res.status);
+    syncWarningShown = false;
     setSyncStatus('تم الحفظ للجميع ✓');
   } catch (e) {
+    failLoudly('تعذّر الحفظ للجميع. التعديل محفوظ في هذا المتصفح فقط، ولن يظهر لأي شخص آخر.');
     setSyncStatus('تعذّر الحفظ للجميع — محفوظ في هذا الجهاز فقط', true);
   }
 }
 
-async function syncReset() {
+async function syncReset(attempt) {
+  attempt = attempt || 0;
   try {
     setSyncStatus('جارٍ إعادة الضبط للجميع…');
     const res = await fetch('/api/data', {
@@ -687,14 +723,22 @@ async function syncReset() {
       body: JSON.stringify({ reset: true }),
     });
     if (res.status === 401) {
-      const pw = prompt('كلمة مرور التعديل المشترك:');
-      if (pw) { setStoredPassword(pw); return syncReset(); }
-      setSyncStatus('لم تتم إعادة الضبط للجميع (كلمة مرور مطلوبة)', true);
+      clearStoredPassword();
+      if (attempt < 3) {
+        const pw = prompt(attempt === 0
+          ? 'كلمة مرور التعديل المشترك:'
+          : 'كلمة المرور غير صحيحة. حاول مرة أخرى:');
+        if (pw) { setStoredPassword(pw); return syncReset(attempt + 1); }
+      }
+      failLoudly('لم تتم إعادة الضبط للجميع: كلمة مرور التعديل غير صحيحة أو لم تُدخل.');
+      setSyncStatus('لم تتم إعادة الضبط للجميع (كلمة المرور غير صحيحة)', true);
       return;
     }
     if (!res.ok) throw new Error('bad status ' + res.status);
+    syncWarningShown = false;
     setSyncStatus('تمت إعادة الضبط للجميع ✓');
   } catch (e) {
+    failLoudly('تعذّرت إعادة الضبط للجميع.');
     setSyncStatus('تعذّرت إعادة الضبط للجميع', true);
   }
 }
@@ -704,9 +748,17 @@ async function syncReset() {
 async function loadSharedNumbers() {
   try {
     const res = await fetch('/api/data', { cache: 'no-store' });
-    if (!res.ok) return;
+    if (!res.ok) {
+      // The shared store is unreachable (e.g. the server env vars are not
+      // set). Say so, instead of silently showing this browser's own values
+      // as though they were everyone's.
+      setSyncStatus('تعذّر جلب القيم المشتركة — ما تراه قد يكون قيم هذا الجهاز فقط', true);
+      return;
+    }
     const data = await res.json();
     document.querySelectorAll('[data-key]').forEach(el => {
+      // Never overwrite the field the user is typing in right now.
+      if (el === document.activeElement) return;
       if (Object.prototype.hasOwnProperty.call(data, el.dataset.key)) {
         el.textContent = data[el.dataset.key];
         try { localStorage.setItem(STORAGE_PREFIX + el.dataset.key, data[el.dataset.key]); } catch (e) {}
@@ -768,6 +820,12 @@ document.addEventListener('DOMContentLoaded', () => {
   wireEditableNumbers();
   loadSavedNumbers();
   loadSharedNumbers();
+  // An already-open page picked up other people's edits only on a manual
+  // reload; poll, and re-check whenever the tab comes back to the front.
+  setInterval(loadSharedNumbers, 30000);
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) loadSharedNumbers();
+  });
 });
 
 async function exportPng(id, filename) {
