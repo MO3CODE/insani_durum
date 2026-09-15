@@ -187,6 +187,7 @@
 <div class="toolbar no-print">
   <span class="label">انقر على أي رقم في التقرير لتعديله — </span>
   <button onclick="resetNumbers()">إعادة الأرقام الأصلية</button>
+  <span class="label" id="sync-status"></span>
   <span class="label">تصدير:</span>
   <button onclick="exportPng('page-ar', 'الوضع الإنساني - اليمن 03 – 07 سبتمبر 2026.png')">صورة PNG (عربي)</button>
   <button onclick="exportPng('page-tr', 'İnsani Durum - Yemen 03 – 07 Eylül 2026.png')">صورة PNG (Türkçe)</button>
@@ -636,6 +637,85 @@
 
 <script>
 const STORAGE_PREFIX = 'guzel-eser-poster-edit:';
+const EDIT_PASSWORD_KEY = 'guzel-eser-poster-edit-password';
+
+function getStoredPassword() {
+  try { return localStorage.getItem(EDIT_PASSWORD_KEY) || ''; } catch (e) { return ''; }
+}
+function setStoredPassword(pw) {
+  try { localStorage.setItem(EDIT_PASSWORD_KEY, pw); } catch (e) {}
+}
+
+function setSyncStatus(text, isError) {
+  const el = document.getElementById('sync-status');
+  if (!el) return;
+  el.textContent = text;
+  el.style.color = isError ? '#ff8a8a' : '#9fb0c3';
+}
+
+// Pushes one edited field to the shared store (api/data.js, backed by a
+// JSON file in the GitHub repo) so every visitor sees the same values —
+// not just the browser that made the edit. Falls back to local-only
+// storage (already saved via localStorage on 'input') if this fails.
+async function syncToServer(key, value) {
+  try {
+    setSyncStatus('جارٍ الحفظ للجميع…');
+    const res = await fetch('/api/data', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Edit-Password': getStoredPassword() },
+      body: JSON.stringify({ key, value }),
+    });
+    if (res.status === 401) {
+      const pw = prompt('كلمة مرور التعديل المشترك:');
+      if (pw) { setStoredPassword(pw); return syncToServer(key, value); }
+      setSyncStatus('لم يُحفظ للجميع (كلمة مرور مطلوبة) — محفوظ في هذا الجهاز فقط', true);
+      return;
+    }
+    if (!res.ok) throw new Error('bad status ' + res.status);
+    setSyncStatus('تم الحفظ للجميع ✓');
+  } catch (e) {
+    setSyncStatus('تعذّر الحفظ للجميع — محفوظ في هذا الجهاز فقط', true);
+  }
+}
+
+async function syncReset() {
+  try {
+    setSyncStatus('جارٍ إعادة الضبط للجميع…');
+    const res = await fetch('/api/data', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Edit-Password': getStoredPassword() },
+      body: JSON.stringify({ reset: true }),
+    });
+    if (res.status === 401) {
+      const pw = prompt('كلمة مرور التعديل المشترك:');
+      if (pw) { setStoredPassword(pw); return syncReset(); }
+      setSyncStatus('لم تتم إعادة الضبط للجميع (كلمة مرور مطلوبة)', true);
+      return;
+    }
+    if (!res.ok) throw new Error('bad status ' + res.status);
+    setSyncStatus('تمت إعادة الضبط للجميع ✓');
+  } catch (e) {
+    setSyncStatus('تعذّرت إعادة الضبط للجميع', true);
+  }
+}
+
+// Pulls the shared values on load, so a device that never touched a field
+// still sees whatever the last edit (from any device) set it to.
+async function loadSharedNumbers() {
+  try {
+    const res = await fetch('/api/data', { cache: 'no-store' });
+    if (!res.ok) return;
+    const data = await res.json();
+    document.querySelectorAll('[data-key]').forEach(el => {
+      if (Object.prototype.hasOwnProperty.call(data, el.dataset.key)) {
+        el.textContent = data[el.dataset.key];
+        try { localStorage.setItem(STORAGE_PREFIX + el.dataset.key, data[el.dataset.key]); } catch (e) {}
+      }
+    });
+  } catch (e) {
+    // offline, or the shared store isn't configured yet — keep local values.
+  }
+}
 
 function loadSavedNumbers() {
   document.querySelectorAll('[data-key]').forEach(el => {
@@ -651,6 +731,13 @@ function wireEditableNumbers() {
 
     el.addEventListener('input', () => {
       localStorage.setItem(STORAGE_PREFIX + el.dataset.key, el.textContent);
+      clearTimeout(el._syncTimer);
+      el._syncTimer = setTimeout(() => syncToServer(el.dataset.key, el.textContent), 1200);
+    });
+
+    el.addEventListener('blur', () => {
+      clearTimeout(el._syncTimer);
+      syncToServer(el.dataset.key, el.textContent);
     });
 
     // Paste as plain text only — a contenteditable number field shouldn't
@@ -669,16 +756,18 @@ function wireEditableNumbers() {
 }
 
 function resetNumbers() {
-  if (!confirm('سيعيد هذا كل الأرقام إلى قيمها الأصلية في هذا المتصفح. متابعة؟')) return;
+  if (!confirm('سيعيد هذا كل الأرقام إلى قيمها الأصلية لدى الجميع. متابعة؟')) return;
   document.querySelectorAll('[data-key]').forEach(el => {
     localStorage.removeItem(STORAGE_PREFIX + el.dataset.key);
     if (el.dataset.original) el.textContent = el.dataset.original;
   });
+  syncReset();
 }
 
 document.addEventListener('DOMContentLoaded', () => {
   wireEditableNumbers();
   loadSavedNumbers();
+  loadSharedNumbers();
 });
 
 async function exportPng(id, filename) {
