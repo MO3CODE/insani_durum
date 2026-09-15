@@ -2,7 +2,8 @@
 exactly (live CSS gradient-over-photo, same as the original Claude Design
 source — no Word-related compromises needed here), with in-browser export:
   - "Export PNG" per language, via html2canvas
-  - "Export PDF" (both pages), via the browser's native print dialog
+  - "Export PDF" per language, via the browser's native print dialog (the
+    other language's page is hidden for that print pass with a body class)
 
 All assets (background photo, logo, fonts, html2canvas itself) are inlined
 (base64 data URIs / inline script) so the file works standalone from a plain
@@ -180,6 +181,14 @@ __FONT_FACES__
     .page { box-shadow: none; page-break-after: always; }
     .page:last-child { page-break-after: auto; }
     [contenteditable="true"] { outline: none !important; background: none !important; }
+
+    /* Single-language PDF export: hide the other page, and don't force a
+       break after the one page that's left (it would otherwise still carry
+       page-break-after:always from the rule above and print a blank 2nd page). */
+    body.print-only-ar #page-tr { display: none !important; }
+    body.print-only-tr #page-ar { display: none !important; }
+    body.print-only-ar #page-ar,
+    body.print-only-tr #page-tr { page-break-after: auto !important; }
   }
 </style>
 </head>
@@ -191,7 +200,8 @@ __FONT_FACES__
   <span class="label">تصدير:</span>
   <button onclick="exportPng('page-ar', '__AR_FILENAME__.png')">صورة PNG (عربي)</button>
   <button onclick="exportPng('page-tr', '__TR_FILENAME__.png')">صورة PNG (Türkçe)</button>
-  <button class="accent" onclick="window.print()">تصدير PDF (طباعة)</button>
+  <button class="accent" onclick="exportPdf('ar', '__AR_FILENAME__')">تصدير PDF (عربي)</button>
+  <button class="accent" onclick="exportPdf('tr', '__TR_FILENAME__')">تصدير PDF (Türkçe)</button>
 </div>
 
 <div class="pages">
@@ -269,6 +279,28 @@ async function exportPng(id, filename) {
   } finally {
     btns.forEach(b => b.disabled = false);
   }
+}
+
+function exportPdf(lang, titleWithoutExt) {
+  const prevTitle = document.title;
+  const cssClass = 'print-only-' + lang;
+  document.title = titleWithoutExt;
+  document.body.classList.add(cssClass);
+
+  let done = false;
+  const cleanup = () => {
+    if (done) return;
+    done = true;
+    document.body.classList.remove(cssClass);
+    document.title = prevTitle;
+    window.removeEventListener('afterprint', cleanup);
+  };
+  // afterprint fires once the print dialog closes (printed or cancelled);
+  // the timeout is only a safety net in case a browser doesn't fire it.
+  window.addEventListener('afterprint', cleanup);
+  setTimeout(cleanup, 60000);
+
+  window.print();
 }
 </script>
 

@@ -169,6 +169,14 @@
     .page { box-shadow: none; page-break-after: always; }
     .page:last-child { page-break-after: auto; }
     [contenteditable="true"] { outline: none !important; background: none !important; }
+
+    /* Single-language PDF export: hide the other page, and don't force a
+       break after the one page that's left (it would otherwise still carry
+       page-break-after:always from the rule above and print a blank 2nd page). */
+    body.print-only-ar #page-tr { display: none !important; }
+    body.print-only-tr #page-ar { display: none !important; }
+    body.print-only-ar #page-ar,
+    body.print-only-tr #page-tr { page-break-after: auto !important; }
   }
 </style>
 </head>
@@ -180,7 +188,8 @@
   <span class="label">تصدير:</span>
   <button onclick="exportPng('page-ar', 'الوضع الإنساني - اليمن 03 – 07 سبتمبر 2026.png')">صورة PNG (عربي)</button>
   <button onclick="exportPng('page-tr', 'İnsani Durum - Yemen 03 – 07 Eylül 2026.png')">صورة PNG (Türkçe)</button>
-  <button class="accent" onclick="window.print()">تصدير PDF (طباعة)</button>
+  <button class="accent" onclick="exportPdf('ar', 'الوضع الإنساني - اليمن 03 – 07 سبتمبر 2026')">تصدير PDF (عربي)</button>
+  <button class="accent" onclick="exportPdf('tr', 'İnsani Durum - Yemen 03 – 07 Eylül 2026')">تصدير PDF (Türkçe)</button>
 </div>
 
 <div class="pages">
@@ -546,6 +555,28 @@ async function exportPng(id, filename) {
   } finally {
     btns.forEach(b => b.disabled = false);
   }
+}
+
+function exportPdf(lang, titleWithoutExt) {
+  const prevTitle = document.title;
+  const cssClass = 'print-only-' + lang;
+  document.title = titleWithoutExt;
+  document.body.classList.add(cssClass);
+
+  let done = false;
+  const cleanup = () => {
+    if (done) return;
+    done = true;
+    document.body.classList.remove(cssClass);
+    document.title = prevTitle;
+    window.removeEventListener('afterprint', cleanup);
+  };
+  // afterprint fires once the print dialog closes (printed or cancelled);
+  // the timeout is only a safety net in case a browser doesn't fire it.
+  window.addEventListener('afterprint', cleanup);
+  setTimeout(cleanup, 60000);
+
+  window.print();
 }
 </script>
 
