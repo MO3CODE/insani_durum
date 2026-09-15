@@ -62,6 +62,7 @@ def fix_paths(section, bg_uri, logo_uri):
 EDITABLE_BY_STYLE = [
     ("font-size:21px;font-weight:700;background:#9C1C33;border-radius:999px;padding:6px 20px", "date"),
     ("font-size:76px;font-weight:700;line-height:1;margin-top:5px;letter-spacing:-2px", "total"),
+    ("font-size:19px;color:#E4E0DC;overflow-wrap:anywhere", "gov-location"),
 ]
 EDITABLE_BY_STYLE_ORDERED = [
     # (style, [data-keys in DOM order of appearance])
@@ -182,13 +183,15 @@ __FONT_FACES__
     .page:last-child { page-break-after: auto; }
     [contenteditable="true"] { outline: none !important; background: none !important; }
 
-    /* Single-language PDF export: hide the other page, and don't force a
+    /* Single-language PDF export: hide the other pages, and don't force a
        break after the one page that's left (it would otherwise still carry
        page-break-after:always from the rule above and print a blank 2nd page). */
-    body.print-only-ar #page-tr { display: none !important; }
-    body.print-only-tr #page-ar { display: none !important; }
+    body.print-only-ar #page-tr, body.print-only-ar #page-en { display: none !important; }
+    body.print-only-tr #page-ar, body.print-only-tr #page-en { display: none !important; }
+    body.print-only-en #page-ar, body.print-only-en #page-tr { display: none !important; }
     body.print-only-ar #page-ar,
-    body.print-only-tr #page-tr { page-break-after: auto !important; }
+    body.print-only-tr #page-tr,
+    body.print-only-en #page-en { page-break-after: auto !important; }
   }
 </style>
 </head>
@@ -200,13 +203,16 @@ __FONT_FACES__
   <span class="label">تصدير:</span>
   <button onclick="exportPng('page-ar', '__AR_FILENAME__.png')">صورة PNG (عربي)</button>
   <button onclick="exportPng('page-tr', '__TR_FILENAME__.png')">صورة PNG (Türkçe)</button>
+  <button onclick="exportPng('page-en', '__EN_FILENAME__.png')">صورة PNG (English)</button>
   <button class="accent" onclick="exportPdf('ar', '__AR_FILENAME__')">تصدير PDF (عربي)</button>
   <button class="accent" onclick="exportPdf('tr', '__TR_FILENAME__')">تصدير PDF (Türkçe)</button>
+  <button class="accent" onclick="exportPdf('en', '__EN_FILENAME__')">تصدير PDF (English)</button>
 </div>
 
 <div class="pages">
 __AR_SECTION__
 __TR_SECTION__
+__EN_SECTION__
 </div>
 
 <script>
@@ -326,35 +332,42 @@ def safe_filename(name):
 def main():
     build_web_background()
     src = SRC.read_text(encoding="utf-8")
-    ar, tr = re.findall(r'<section class="page".*?</section>', src, re.S)
+    ar, tr, en = re.findall(r'<section class="page".*?</section>', src, re.S)
 
     ar_date = extract_date(ar)
     tr_date = extract_date(tr)
+    en_date = extract_date(en)
     ar_filename = safe_filename(f"الوضع الإنساني - اليمن {ar_date}")
     tr_filename = safe_filename(f"İnsani Durum - Yemen {tr_date}")
-    page_title = f"{ar_filename} · {tr_filename}"
+    en_filename = safe_filename(f"Humanitarian Situation - Yemen {en_date}")
+    page_title = f"{ar_filename} · {tr_filename} · {en_filename}"
 
     bg_uri = b64(BG_PHOTO_WEB, "image/jpeg")
     logo_uri = b64(LOGO, "image/png")
 
     ar = fix_paths(ar, bg_uri, logo_uri).replace('<section class="page"', '<section id="page-ar" class="page"', 1)
     tr = fix_paths(tr, bg_uri, logo_uri).replace('<section class="page"', '<section id="page-tr" class="page"', 1)
+    en = fix_paths(en, bg_uri, logo_uri).replace('<section class="page"', '<section id="page-en" class="page"', 1)
     ar = mark_editable(ar, "ar")
     tr = mark_editable(tr, "tr")
+    en = mark_editable(en, "en")
 
     html = PAGE_TEMPLATE
     html = html.replace("__HTML2CANVAS_JS__", HTML2CANVAS.read_text(encoding="utf-8"))
     html = html.replace("__FONT_FACES__", font_faces())
     html = html.replace("__AR_SECTION__", ar)
     html = html.replace("__TR_SECTION__", tr)
+    html = html.replace("__EN_SECTION__", en)
     html = html.replace("__AR_FILENAME__", ar_filename)
     html = html.replace("__TR_FILENAME__", tr_filename)
+    html = html.replace("__EN_FILENAME__", en_filename)
     html = html.replace("__PAGE_TITLE__", page_title)
 
     OUT.write_text(html, encoding="utf-8")
     print("saved", OUT, len(html) / 1024, "KB")
     print("AR filename:", ar_filename)
     print("TR filename:", tr_filename)
+    print("EN filename:", en_filename)
 
 
 if __name__ == "__main__":
