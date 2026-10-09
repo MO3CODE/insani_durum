@@ -388,6 +388,7 @@ const T = {
     govCount: (n) => `${n} ${n <= 10 ? 'محافظات' : 'محافظة'}`,
     totalLabel: 'إجمالي الأفراد النازحين', totalUnit: 'فرد نازح',
     familiesLabel: 'الأسر النازحة', familiesUnit: 'أسرة', familiesShort: 'أسرة نازحة',
+    perFamily: 'فرد في كل أسرة',
     govLabel: 'محافظات النزوح',
     need: {
       food: { pre: 'يحتاجون إلى', item: 'المساعدات الغذائية', short: 'بحاجة لمساعدات غذائية' },
@@ -416,6 +417,7 @@ const T = {
     govCount: (n) => `${n} il`,
     totalLabel: 'Yerinden edilen kişi', totalUnit: 'kişi',
     familiesLabel: 'Yerinden edilen aile', familiesUnit: 'aile', familiesShort: 'yerinden edilen aile',
+    perFamily: 'aile başına kişi',
     govLabel: 'Etkilenen il',
     need: {
       food: { item: 'Gıda yardımına', post: 'ihtiyaç duyuyor', short: 'gıda yardımı ihtiyacı' },
@@ -444,6 +446,7 @@ const T = {
     govCount: (n) => `${n} governorates`,
     totalLabel: 'Displaced people', totalUnit: 'people',
     familiesLabel: 'Displaced families', familiesUnit: 'families', familiesShort: 'displaced families',
+    perFamily: 'people per family',
     govLabel: 'Affected governorates',
     need: {
       food: { pre: 'Need', item: 'food assistance', short: 'need food assistance' },
@@ -557,6 +560,10 @@ function posterA4(lang, r) {
   const govList = r.governorates.map((g) => govName(g, lang).replace(/ /g, '\u00a0')).join('\u00a0· ');
   const govFont = n <= 3 ? 19 : n <= 6 ? 16 : 13.5;
   const govLines = n <= 3 ? 2 : 3;
+  const totalDigits = fmtNum(lang, r.total).length;
+  const totalFont = totalDigits <= 7 ? 96 : totalDigits <= 9 ? 78 : 64;
+  // Average household size, worked out from the two numbers already on the page.
+  const perFamily = r.families > 0 ? (r.total / r.families).toFixed(1).replace('.', lang === 'tr' ? ',' : '.') : '';
 
   const logo = `<div style="background:#FFFFFF;border-radius:14px;padding:8px 11px;flex:0 0 auto"><img src="${LOGO_URI}" alt="Güzel Eser" style="display:block;width:74px;height:auto"></div>`;
   const org = `<div style="font-size:18px;font-weight:600;letter-spacing:2px;color:#EBC9CF;text-align:left">GÜZEL ESER İNSANİ YARDIM DERNEĞİ</div>`;
@@ -609,13 +616,19 @@ function posterA4(lang, r) {
   </div>
 
   <div style="position:relative;padding:18px 44px 0;display:grid;grid-template-columns:1.5fr 1fr;gap:16px">
-    <div style="background:rgba(0,0,0,0.38);border:1px solid rgba(255,255,255,0.22);border-radius:22px;padding:14px 20px;text-align:${align}">
+    <div style="background:rgba(0,0,0,0.38);border:1px solid rgba(255,255,255,0.22);border-radius:22px;padding:14px 20px;text-align:${align};display:flex;flex-direction:column">
       <div style="display:flex;justify-content:flex-start;align-items:center;gap:12px">
         ${statIcon('users-three', 44, 26, 14)}
         <div style="font-size:22px;font-weight:700;color:#EBC9CF">${t.totalLabel}</div>
       </div>
-      <div style="font-size:76px;font-weight:700;line-height:1;margin-top:5px;letter-spacing:-2px">${fmtNum(lang, r.total)}</div>
-      <div style="font-size:24px;font-weight:600;color:#E4E0DC">${t.totalUnit}</div>
+      <div style="flex:1;display:flex;flex-direction:column;justify-content:center">
+        <div style="font-size:${totalFont}px;font-weight:700;line-height:1;letter-spacing:-2px;white-space:nowrap">${fmtNum(lang, r.total)}</div>
+        <div style="font-size:26px;font-weight:600;color:#E4E0DC">${t.totalUnit}</div>
+      </div>
+      ${perFamily ? `<div style="border-top:1px solid rgba(255,255,255,0.18);padding-top:10px;margin-top:6px">
+        <div style="font-size:26px;font-weight:700;line-height:1.1">≈ ${perFamily}</div>
+        <div style="font-size:16px;color:#E4E0DC">${t.perFamily}</div>
+      </div>` : ''}
     </div>
     <div style="display:flex;flex-direction:column;gap:12px">
       <div style="flex:1;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.22);border-radius:20px;padding:10px 18px;text-align:${align};display:flex;flex-direction:column;justify-content:center">
