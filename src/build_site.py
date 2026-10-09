@@ -40,7 +40,10 @@ FFLATE = ASSETS / "fflate.min.js"
 SEED = HERE.parent / "data" / "reports.json"
 OUT = HERE.parent / "index.html"
 
-DONATE_URL = "https://guzeleser.org"
+# Where the QR code on the story format leads, and the short address printed
+# beside it (and in the post footer).
+DONATE_URL = "https://guzeleser.org/bagis/kumbara-bagisi/"
+SITE_LABEL = "guzeleser.org"
 
 URANGES = {
     "arabic": "U+0600-06FF, U+0750-077F, U+0870-088E, U+0890-0891, U+0897-08E1, U+08E3-08FF, "
@@ -143,7 +146,7 @@ def main():
         ("__SEED_JSON__", script_json(seed)),
         ("__ICONS_JSON__", script_json(icons())),
         ("__QR_JSON__", script_json(qr_svg())),
-        ("__DONATE_URL__", DONATE_URL),
+        ("__SITE_LABEL__", SITE_LABEL),
     ]
     for token, value in replacements:
         assert html.count(token) == 1, (token, html.count(token))

@@ -348,7 +348,7 @@ function posterPost(lang, r) {
       ${NEEDS.map((k) => needTile(lang, r, k, false)).join('')}
     </div>
     <div style="margin-top:auto;display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:12px;color:#E4E0DC">
-      <span>${t.sourceShort}</span><b style="color:#fff;direction:ltr">${DONATE_URL.replace(/^https?:\/\//, '')}</b>
+      <span>${t.sourceShort}</span><b style="color:#fff;direction:ltr">${SITE_LABEL}</b>
     </div>
   </section>`;
 }
@@ -373,7 +373,7 @@ function posterStory(lang, r) {
       ${NEEDS.map((k) => needTile(lang, r, k, true)).join('')}
     </div>
     <div style="margin-top:auto;background:#fff;color:#0E2A46;border-radius:16px;padding:12px 14px;display:flex;align-items:center;gap:12px">
-      ${qr}<div><div style="font-weight:700;font-size:16px">${t.support}</div><div style="font-size:13px;direction:ltr;text-align:${align}">${DONATE_URL.replace(/^https?:\/\//, '')}</div></div>
+      ${qr}<div><div style="font-weight:700;font-size:16px">${t.support}</div><div style="font-size:13px;direction:ltr;text-align:${align}">${SITE_LABEL}</div></div>
     </div>
   </section>`;
 }
