@@ -1,0 +1,15 @@
+{
+  "reports": [
+    {
+      "id": "2026-09-03",
+      "start": "2026-09-03",
+      "end": "2026-09-07",
+      "total": 197906,
+      "families": 29519,
+      "governorates": ["taiz", "hodeidah", "marib", "hadramawt", "aden", "abyan", "lahij", "mahrah", "dhale"],
+      "needsTitle": { "ar": "معدل النزوح", "tr": "Yerinden Edilme Oranı", "en": "Displacement Rate" },
+      "needs": { "food": 50, "shelter": 24, "cash": 17, "nfi": 7 },
+      "updatedAt": "2026-10-09T00:00:00.000Z"
+    }
+  ]
+}

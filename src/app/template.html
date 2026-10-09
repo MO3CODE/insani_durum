@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>التقرير الإنساني للنزوح — اليمن · Güzel Eser</title>
+<script>__HTML2CANVAS_JS__</script>
+<script>__FFLATE_JS__</script>
+<style>
+__FONT_FACES__
+:root { --poster-bg: url('__BG_URI__'); }
+__APP_CSS__
+</style>
+</head>
+<body>
+
+<header class="topbar no-print">
+  <div class="topbar-row">
+    <div class="brand">
+      <div class="brand-title">تقرير النزوح — اليمن</div>
+      <button class="pill-btn" id="date-btn" type="button" title="أرشيف التقارير"></button>
+    </div>
+    <div class="actions">
+      <div class="sync" id="sync-status" role="status"></div>
+      <button class="btn" type="button" id="edit-btn">✎ تعديل البيانات</button>
+      <div class="menu-wrap">
+        <button class="btn accent" type="button" id="export-btn" aria-haspopup="true" aria-expanded="false">⤓ تصدير ▾</button>
+        <div class="menu" id="export-menu" hidden></div>
+      </div>
+    </div>
+  </div>
+  <div class="topbar-row tabs-row">
+    <div class="seg" id="lang-tabs" role="tablist" aria-label="اللغة"></div>
+    <div class="seg" id="format-tabs" role="tablist" aria-label="المقاس"></div>
+  </div>
+</header>
+
+<main id="stage" class="stage no-print"></main>
+
+<section id="archive" class="archive no-print" hidden></section>
+
+<aside id="panel" class="panel no-print" hidden aria-label="بيانات التقرير"></aside>
+
+<div id="print-area"></div>
+<div id="render-host" aria-hidden="true"></div>
+<div id="busy" class="busy-overlay no-print" hidden><div class="busy-box" id="busy-text">جارٍ التصدير…</div></div>
+
+<script>
+const SEED = __SEED_JSON__;
+const ICONS = __ICONS_JSON__;
+const LOGO_URI = '__LOGO_URI__';
+const QR_SVG = __QR_JSON__;
+const DONATE_URL = '__DONATE_URL__';
+__APP_JS__
+</script>
+</body>
+</html>
