@@ -22,6 +22,8 @@ const NEED_KEYS = ["food", "shelter", "cash", "nfi"];
 const LANGS = ["ar", "tr", "en"];
 const MAX_REPORTS = 520;
 const MAX_TITLE_LEN = 80;
+// Headings an editor may reword, with their maximum length.
+const TEXT_LIMITS = { title: 120, totalLabel: 60, familiesLabel: 60, govLabel: 60, areasTitle: 80, source: 220 };
 const MAX_COUNT = 100000000;
 
 async function githubRequest(path, options = {}) {
@@ -70,6 +72,21 @@ function isCount(n, max) {
   return Number.isInteger(n) && n >= 0 && n <= max;
 }
 
+// Optional reworded headings: { key: { ar, tr, en } }, unknown keys rejected.
+function cleanTexts(texts) {
+  if (texts === undefined) return {};
+  if (!texts || typeof texts !== "object" || Array.isArray(texts)) return null;
+  const out = {};
+  for (const [key, byLang] of Object.entries(texts)) {
+    if (!TEXT_LIMITS[key] || !byLang || typeof byLang !== "object") return null;
+    for (const [lang, value] of Object.entries(byLang)) {
+      if (!LANGS.includes(lang) || typeof value !== "string" || value.length > TEXT_LIMITS[key]) return null;
+      if (value.trim()) (out[key] = out[key] || {})[lang] = value.trim();
+    }
+  }
+  return out;
+}
+
 // Returns a clean copy of the report, or null if anything is malformed.
 function cleanReport(r) {
   if (!r || typeof r !== "object") return null;
@@ -79,6 +96,8 @@ function cleanReport(r) {
   if (!r.governorates.every((g) => typeof g === "string" && GOV_RE.test(g))) return null;
   if (!r.needs || !NEED_KEYS.every((k) => isCount(r.needs[k], 100))) return null;
   if (!r.needsTitle || !LANGS.every((l) => typeof r.needsTitle[l] === "string" && r.needsTitle[l].length <= MAX_TITLE_LEN)) return null;
+  const texts = cleanTexts(r.texts);
+  if (!texts) return null;
   return {
     id: r.start,
     start: r.start,
@@ -88,6 +107,7 @@ function cleanReport(r) {
     governorates: [...new Set(r.governorates)],
     needsTitle: { ar: r.needsTitle.ar.trim(), tr: r.needsTitle.tr.trim(), en: r.needsTitle.en.trim() },
     needs: { food: r.needs.food, shelter: r.needs.shelter, cash: r.needs.cash, nfi: r.needs.nfi },
+    ...(Object.keys(texts).length ? { texts } : {}),
     updatedAt: new Date().toISOString(),
   };
 }
