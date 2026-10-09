@@ -852,18 +852,64 @@ function busy(on, text) {
   document.querySelectorAll('.topbar button').forEach((b) => { b.disabled = on; });
 }
 
-async function renderPng(format, lang, r) {
+async function renderCanvas(format, lang, r, scale) {
   const host = $('#render-host');
   host.innerHTML = posterHTML(format, lang, r);
   const el = host.firstElementChild;
   if (document.fonts && document.fonts.ready) await document.fonts.ready;
   await Promise.all([...el.querySelectorAll('img')].map((img) => (img.decode ? img.decode().catch(() => {}) : null)));
   try {
-    const canvas = await html2canvas(el, { scale: FORMATS[format].scale, useCORS: true, backgroundColor: null, logging: false });
-    return await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+    return await html2canvas(el, { scale, useCORS: true, backgroundColor: '#0b1420', logging: false });
   } finally {
     host.innerHTML = '';
   }
+}
+
+async function renderPng(format, lang, r) {
+  const canvas = await renderCanvas(format, lang, r, FORMATS[format].scale);
+  return new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+}
+
+// A minimal PDF: one A4 page per image, each page a full-bleed JPEG.
+// Built here rather than through the browser's print dialog, because phone
+// browsers print without background colours and images (the page came out
+// blank and transparent), whatever the page's CSS asks for.
+function buildPdf(images) {
+  const enc = new TextEncoder();
+  const parts = [];
+  const offsets = [];
+  let length = 0;
+  const push = (d) => {
+    const bytes = typeof d === 'string' ? enc.encode(d) : d;
+    parts.push(bytes);
+    length += bytes.length;
+  };
+  const obj = (id, write) => {
+    offsets[id] = length;
+    push(`${id} 0 obj\n`);
+    write();
+    push('\nendobj\n');
+  };
+  const W = 595.28, H = 841.89; // A4 in points
+  push('%PDF-1.4\n%\u00e2\u00e3\u00cf\u00d3\n');
+  obj(1, () => push('<< /Type /Catalog /Pages 2 0 R >>'));
+  obj(2, () => push(`<< /Type /Pages /Kids [${images.map((_, i) => `${3 + 3 * i} 0 R`).join(' ')}] /Count ${images.length} >>`));
+  images.forEach((img, i) => {
+    const page = 3 + 3 * i, content = page + 1, image = page + 2;
+    const draw = `q ${W} 0 0 ${H} 0 0 cm /Im0 Do Q`;
+    obj(page, () => push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${W} ${H}] /Resources << /XObject << /Im0 ${image} 0 R >> >> /Contents ${content} 0 R >>`));
+    obj(content, () => push(`<< /Length ${draw.length} >>\nstream\n${draw}\nendstream`));
+    obj(image, () => {
+      push(`<< /Type /XObject /Subtype /Image /Width ${img.width} /Height ${img.height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${img.bytes.length} >>\nstream\n`);
+      push(img.bytes);
+      push('\nendstream');
+    });
+  });
+  const count = 3 + 3 * images.length;
+  const xref = length;
+  push(`xref\n0 ${count}\n0000000000 65535 f \n${offsets.slice(1).map((o) => `${String(o).padStart(10, '0')} 00000 n \n`).join('')}`);
+  push(`trailer\n<< /Size ${count} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`);
+  return new Blob(parts, { type: 'application/pdf' });
 }
 
 function downloadBlob(blob, name) {
@@ -906,26 +952,24 @@ async function exportImages(formats, langs, r, zipName) {
   }
 }
 
-function exportPdf(langs) {
+async function exportPdf(langs) {
   const r = shownReport();
   if (!r) return;
-  const area = $('#print-area');
-  area.innerHTML = langs.map((l) => posterA4(l, r)).join('');
-  const prevTitle = document.title;
-  document.title = langs.length === 1 ? fileBase(langs[0], r, 'a4') : `Güzel Eser - ${fmtRange('en', r.start, r.end)}`;
-  let done = false;
-  const cleanup = () => {
-    if (done) return;
-    done = true;
-    area.innerHTML = '';
-    document.title = prevTitle;
-    window.removeEventListener('afterprint', cleanup);
-  };
-  // afterprint fires once the print dialog closes (printed or cancelled);
-  // the timeout is only a safety net in case a browser doesn't fire it.
-  window.addEventListener('afterprint', cleanup);
-  setTimeout(cleanup, 60000);
-  window.print();
+  try {
+    const images = [];
+    for (let i = 0; i < langs.length; i++) {
+      busy(true, langs.length > 1 ? `جارٍ تجهيز ملف PDF… ${i + 1} من ${langs.length}` : 'جارٍ تجهيز ملف PDF…');
+      const canvas = await renderCanvas('a4', langs[i], r, 2.5);
+      const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.9));
+      images.push({ bytes: new Uint8Array(await blob.arrayBuffer()), width: canvas.width, height: canvas.height });
+    }
+    const name = langs.length === 1 ? fileBase(langs[0], r, 'a4') : `Güzel Eser - ${fmtRange('en', r.start, r.end)}`;
+    downloadBlob(buildPdf(images), name + '.pdf');
+  } catch (e) {
+    alert('تعذّر إنشاء ملف PDF: ' + (e && e.message ? e.message : e));
+  } finally {
+    busy(false);
+  }
 }
 
 function renderExportMenu() {
@@ -933,7 +977,7 @@ function renderExportMenu() {
   const which = state.lang === 'all' ? 'اللغات الثلاث' : T[state.lang].langName;
   const many = langs.length > 1 ? ' · ملف ZIP' : '';
   $('#export-menu').innerHTML = `
-    <button type="button" data-export="pdf"><span class="mi">📄</span><span><div class="mt">PDF للطباعة</div><div class="ms">A4 · ${which}</div></span></button>
+    <button type="button" data-export="pdf"><span class="mi">📄</span><span><div class="mt">ملف PDF</div><div class="ms">A4 للطباعة والإرسال · ${which}</div></span></button>
     <button type="button" data-export="a4"><span class="mi">🖼</span><span><div class="mt">صورة PNG</div><div class="ms">A4 للواتساب والإيميل · ${which}${many}</div></span></button>
     <button type="button" data-export="post"><span class="mi">▣</span><span><div class="mt">منشور إنستغرام / فيسبوك</div><div class="ms">1080×1350 (4:5) · ${which}${many}</div></span></button>
     <button type="button" data-export="story"><span class="mi">▯</span><span><div class="mt">ستوري</div><div class="ms">1080×1920 (9:16) · ${which}${many}</div></span></button>

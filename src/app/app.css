@@ -157,14 +157,3 @@ details.tr-titles .inp { margin-top: 6px; }
   .topbar-row { justify-content: center; }
   .seg button { padding: 6px 12px; font-size: 14px; }
 }
-
-/* ---------- print (PDF) ---------- */
-#print-area { display: none; }
-@page { size: A4; margin: 0; }
-@media print {
-  html, body { background: #fff; }
-  body > *:not(#print-area) { display: none !important; }
-  #print-area { display: block; }
-  #print-area .poster { page-break-after: always; break-after: page; }
-  #print-area .poster:last-child { page-break-after: auto; break-after: auto; }
-}
