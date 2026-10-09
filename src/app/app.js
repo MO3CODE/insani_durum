@@ -773,8 +773,12 @@ function renderPanel() {
       </div>
     </div>
 
-    <details class="texts">
-      <summary>العناوين والنصوص <span>(بالعربية والتركية والإنجليزية)</span></summary>
+    <details class="texts" id="texts-box"${state.textsOpen ? ' open' : ''}>
+      <summary>العناوين والنصوص <span>— ${state.lang === 'all' ? 'اللغات الثلاث' : T[state.lang].langName}</span></summary>
+      <div class="seg text-langs" role="tablist" aria-label="لغة النصوص">
+        ${[...LANGS, 'all'].map((l) => `<button type="button" data-text-lang="${l}" aria-selected="${state.lang === l}">${l === 'all' ? 'الكل' : T[l].langName}</button>`).join('')}
+      </div>
+      <div class="hint" style="margin:0 0 12px">تعدّل نصوص اللغة المعروضة فقط — بدّل اللغة من هنا أو من الأعلى.</div>
       ${textInputs('title-needs', 'عنوان قسم النسب', 80, (l) => d.needsTitle[l], (l) => '')}
       ${TEXT_FIELDS.map(([key, label, max]) => textInputs(`text-${key}`, label, max,
         (l) => customText(l, d, key) || plainDefault(l, key), (l) => plainDefault(l, key))).join('')}
@@ -798,10 +802,13 @@ function plainDefault(lang, key) {
   return box.textContent;
 }
 
+// The heading fields follow the language being viewed: on the Turkish tab
+// only the Turkish wording is shown, and so on ("all" shows the three).
 function textInputs(idBase, label, max, value, placeholder) {
-  return `<div class="field text-field">
+  const langs = state.lang === 'all' ? LANGS : [state.lang];
+  return `<div class="field text-field${langs.length === 1 ? ' single' : ''}">
     <div class="flabel">${label}</div>
-    ${LANGS.map((l) => `<div class="lang-inp"><b>${l === 'ar' ? 'ع' : l.toUpperCase()}</b><input class="inp small" id="f-${idBase}-${l}" dir="${l === 'ar' ? 'rtl' : 'ltr'}" maxlength="${max}" value="${esc(value(l))}" placeholder="${esc(placeholder(l))}" aria-label="${label} ${T[l].langName}"></div>`).join('')}
+    ${langs.map((l) => `<div class="lang-inp"><b>${l === 'ar' ? 'ع' : l.toUpperCase()}</b><input class="inp small" id="f-${idBase}-${l}" dir="${l === 'ar' ? 'rtl' : 'ltr'}" maxlength="${max}" value="${esc(value(l))}" placeholder="${esc(placeholder(l))}" aria-label="${label} ${T[l].langName}"></div>`).join('')}
   </div>`;
 }
 
@@ -1080,6 +1087,7 @@ function wire() {
     const b = e.target.closest('[data-lang]');
     if (!b) return;
     state.lang = b.dataset.lang;
+    if (state.draft) renderPanel();
     renderAll();
   });
   $('#format-tabs').addEventListener('click', (e) => {
@@ -1134,6 +1142,10 @@ function wire() {
 
   const panel = $('#panel');
   panel.addEventListener('input', onPanelInput);
+  // Remember whether the headings group is open across panel re-renders.
+  panel.addEventListener('toggle', (e) => {
+    if (e.target.id === 'texts-box') state.textsOpen = e.target.open;
+  }, true);
   panel.addEventListener('change', (e) => {
     if (e.target.id === 'f-add-gov' && e.target.value) {
       state.draft.governorates.push(e.target.value);
@@ -1147,6 +1159,13 @@ function wire() {
       state.draft.governorates = state.draft.governorates.filter((g) => g !== rm.dataset.removeGov);
       renderPanel();
       schedulePreview();
+      return;
+    }
+    const tl = e.target.closest('[data-text-lang]');
+    if (tl) {
+      state.lang = tl.dataset.textLang;
+      renderPanel();
+      renderAll();
       return;
     }
     const id = e.target.id;
