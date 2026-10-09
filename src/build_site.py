@@ -1,94 +1,49 @@
-"""Build a single self-contained HTML page reproducing the v3 poster design
-exactly (live CSS gradient-over-photo, same as the original Claude Design
-source — no Word-related compromises needed here), with in-browser export:
-  - "Export PNG" per language, via html2canvas
-  - "Export PDF" per language, via the browser's native print dialog (the
-    other language's page is hidden for that print pass with a body class)
+"""Build index.html: one self-contained page that renders the weekly
+displacement report (Arabic, Turkish, English) from data, with an edit
+panel, a weekly archive, and PNG / PDF / social-media exports.
 
-All assets (background photo, logo, fonts, html2canvas itself) are inlined
-(base64 data URIs / inline script) so the file works standalone from a plain
-double-click (file://) with no CORS/canvas-tainting issues for the PNG
-export, no CDN dependency, and no separate assets folder to keep track of.
+Sources (all under src/):
+  app/template.html, app/app.css, app/app.js   the page itself
+  assets/                                      photo, logo, fonts, icons, libraries
+  ../data/reports.json                         the reports baked in as the
+                                               starting data (the live copy is
+                                               fetched from api/data.js)
 
-Uses plain string.replace() with unique tokens instead of str.format(): the
-template's CSS/JS (and the vendored html2canvas source) are full of literal
-braces that .format() would misparse as placeholders.
+Everything is inlined (base64 data URIs / inline scripts) so the file also
+works from a plain double-click (file://), with no CDN dependency and no
+canvas-tainting issues for the PNG export.
+
+Uses plain str.replace() with unique tokens instead of str.format(): the
+CSS/JS (and the vendored libraries) are full of literal braces.
+
+Run from the src/ folder:  python3 build_site.py
+Needs: Pillow (pip install pillow). Optional: segno (pip install segno) for
+the donation QR code on the story format — without it the QR is left out.
 """
 import base64
-import re
+import json
 from pathlib import Path
 
 from PIL import Image
 
-SRC = Path("design-source/daily-displacement-poster-v3.dc.html")
-BG_PHOTO_SRC = Path("assets/background.jpg")
-BG_PHOTO_WEB = Path("assets/background-web.jpg")
-LOGO = Path("assets/logo.png")
-FONT_DIR = Path("assets/fonts")
-HTML2CANVAS = Path("assets/html2canvas.min.js")
-OUT = Path("../index.html")
+HERE = Path(__file__).resolve().parent
+APP = HERE / "app"
+ASSETS = HERE / "assets"
+BG_PHOTO_SRC = ASSETS / "background.jpg"
+BG_PHOTO_WEB = ASSETS / "background-web.jpg"
+LOGO = ASSETS / "logo.png"
+LOGO_WEB = ASSETS / "logo-web.png"
+FONT_DIR = ASSETS / "fonts"
+ICON_DIR = ASSETS / "icons"
+HTML2CANVAS = ASSETS / "html2canvas.min.js"
+FFLATE = ASSETS / "fflate.min.js"
+SEED = HERE.parent / "data" / "reports.json"
+OUT = HERE.parent / "index.html"
 
-
-def build_web_background():
-    """A ~2200px-wide recompression of the original 6000x3376 photo — the
-    browser only ever displays it at print/screen size via background-size:
-    cover, so shipping the full-resolution original just bloats this
-    self-contained file for no visible gain."""
-    im = Image.open(BG_PHOTO_SRC).convert("RGB")
-    if im.width > 2200:
-        ratio = 2200 / im.width
-        im = im.resize((2200, round(im.height * ratio)), Image.LANCZOS)
-    im.save(BG_PHOTO_WEB, quality=85)
-
-
-def b64(path, mime):
-    data = base64.b64encode(path.read_bytes()).decode("ascii")
-    return f"data:{mime};base64,{data}"
-
-
-def fix_paths(section, bg_uri, logo_uri):
-    section = section.replace("uploads/DSC06426.JPG", bg_uri)
-    section = section.replace("uploads/g%C3%BCzelEser_logo.png", logo_uri)
-    section = re.sub(r'\s?data-screen-label="[A-Z]+"', "", section)
-    return section
-
-
-# Every number in the poster, marked editable. Matched by each div's exact
-# style string, which (per the v3 source) is unique to that one figure —
-# except the two spots reused for different numbers (families/governorate
-# count share one style, the four damage stats share another), where the
-# match is instead resolved by *position* since they always appear in the
-# same fixed DOM order for both languages.
-EDITABLE_BY_STYLE = [
-    ("font-size:21px;font-weight:700;background:#9C1C33;border-radius:999px;padding:6px 20px", "date"),
-    ("font-size:76px;font-weight:700;line-height:1;margin-top:5px;letter-spacing:-2px", "total"),
-    ("font-size:19px;color:#E4E0DC;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden", "gov-location"),
-]
-EDITABLE_BY_STYLE_ORDERED = [
-    # (style, [data-keys in DOM order of appearance])
-    ("font-size:40px;font-weight:700;line-height:1.05;margin-top:2px", ["families", "governorates"]),
-    ("font-size:34px;font-weight:700;line-height:1.05;margin-top:4px",
-     ["damage-0", "damage-1", "damage-2", "damage-3"]),
-]
-
-
-def mark_editable(section, lang):
-    for style, key in EDITABLE_BY_STYLE:
-        needle = f'style="{style}">'
-        replacement = f'style="{style}" contenteditable="true" data-key="{lang}-{key}">'
-        assert section.count(needle) == 1, (style, section.count(needle))
-        section = section.replace(needle, replacement, 1)
-
-    for style, keys in EDITABLE_BY_STYLE_ORDERED:
-        needle = f'style="{style}">'
-        assert section.count(needle) == len(keys), (style, section.count(needle))
-        parts = section.split(needle)
-        rebuilt = parts[0]
-        for i, key in enumerate(keys):
-            rebuilt += f'style="{style}" contenteditable="true" data-key="{lang}-{key}">' + parts[i + 1]
-        section = rebuilt
-    return section
-
+# Where the QR code on the story format leads, and the short address printed
+# beside it (and in the post footer).
+DONATE_URL = "https://guzeleser.org/bagis/kumbara-bagisi/"
+SITE_LABEL = "guzeleser.org"
 
 URANGES = {
     "arabic": "U+0600-06FF, U+0750-077F, U+0870-088E, U+0890-0891, U+0897-08E1, U+08E3-08FF, "
@@ -108,355 +63,97 @@ URANGES = {
 }
 
 
+def build_web_images():
+    """Recompress the 6000px original photo to ~2200px and the 1080px logo to
+    240px: the page only ever shows them at print/screen size, so shipping the
+    originals just bloats this self-contained file for no visible gain."""
+    im = Image.open(BG_PHOTO_SRC).convert("RGB")
+    if im.width > 2200:
+        ratio = 2200 / im.width
+        im = im.resize((2200, round(im.height * ratio)), Image.LANCZOS)
+    im.save(BG_PHOTO_WEB, quality=85)
+
+    logo = Image.open(LOGO)
+    logo.thumbnail((240, 240), Image.LANCZOS)
+    logo.save(LOGO_WEB, optimize=True)
+
+
+def b64(path, mime):
+    data = base64.b64encode(path.read_bytes()).decode("ascii")
+    return f"data:{mime};base64,{data}"
+
+
 def font_faces():
     blocks = []
     for weight in (400, 500, 600, 700):
         for subset in ("arabic", "latin", "latinext"):
             f = FONT_DIR / f"plex-arabic-{weight}-{subset}.woff2"
             uri = b64(f, "font/woff2")
-            blocks.append(f"""  @font-face {{
-    font-family: 'IBM Plex Sans Arabic';
-    font-style: normal;
-    font-weight: {weight};
-    font-display: swap;
-    src: url('{uri}') format('woff2');
-    unicode-range: {URANGES[subset]};
-  }}""")
+            blocks.append(f"""@font-face {{
+  font-family: 'IBM Plex Sans Arabic';
+  font-style: normal;
+  font-weight: {weight};
+  font-display: swap;
+  src: url('{uri}') format('woff2');
+  unicode-range: {URANGES[subset]};
+}}""")
     return "\n".join(blocks)
 
 
-PAGE_TEMPLATE = """<!DOCTYPE html>
-<html lang="ar">
-<head>
-<meta charset="utf-8">
-<title>__PAGE_TITLE__</title>
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<script>
-__HTML2CANVAS_JS__
-</script>
-<style>
-__FONT_FACES__
-
-  * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  html, body { margin: 0; padding: 0; background: #0b1420; }
-  body { font-family: 'IBM Plex Sans Arabic', system-ui, sans-serif; }
-
-  .toolbar {
-    position: sticky; top: 0; z-index: 10;
-    display: flex; align-items: center; justify-content: center; gap: 10px;
-    flex-wrap: wrap;
-    background: #0f1c2c; padding: 14px 16px; border-bottom: 1px solid #223449;
-    font-family: system-ui, sans-serif;
-  }
-  .toolbar button {
-    appearance: none; border: 1px solid #3C5A78; background: #14395E; color: #fff;
-    font-size: 14px; font-weight: 600; padding: 10px 18px; border-radius: 999px;
-    cursor: pointer; transition: background .15s ease;
-  }
-  .toolbar button:hover { background: #1B4468; }
-  .toolbar button.accent { background: #9C1C33; border-color: #9C1C33; }
-  .toolbar button.accent:hover { background: #b32540; }
-  .toolbar .label { color: #9fb0c3; font-size: 13px; margin-inline-end: 4px; }
-  .toolbar button:disabled { opacity: .5; cursor: wait; }
-
-  .pages { display: flex; flex-direction: column; align-items: center; gap: 28px; padding: 28px 12px; }
-  .page { width: 210mm; height: 297mm; box-shadow: 0 10px 40px rgba(0,0,0,0.45); flex-shrink: 0; }
-
-  [contenteditable="true"] {
-    border-radius: 6px;
-    outline: 1px dashed rgba(255,255,255,0.35);
-    outline-offset: 3px;
-    cursor: text;
-  }
-  [contenteditable="true"]:hover { background: rgba(255,255,255,0.08); }
-  [contenteditable="true"]:focus {
-    outline: 2px solid #EBC9CF;
-    background: rgba(255,255,255,0.12);
-  }
-
-  @page { size: A4; margin: 0; }
-  @media print {
-    body { background: #fff; }
-    .toolbar { display: none !important; }
-    .pages { gap: 0; padding: 0; }
-    .page { box-shadow: none; page-break-after: always; }
-    .page:last-child { page-break-after: auto; }
-    [contenteditable="true"] { outline: none !important; background: none !important; }
-
-    /* Single-language PDF export: hide the other pages, and don't force a
-       break after the one page that's left (it would otherwise still carry
-       page-break-after:always from the rule above and print a blank 2nd page). */
-    body.print-only-ar #page-tr, body.print-only-ar #page-en { display: none !important; }
-    body.print-only-tr #page-ar, body.print-only-tr #page-en { display: none !important; }
-    body.print-only-en #page-ar, body.print-only-en #page-tr { display: none !important; }
-    body.print-only-ar #page-ar,
-    body.print-only-tr #page-tr,
-    body.print-only-en #page-en { page-break-after: auto !important; }
-  }
-</style>
-</head>
-<body>
-
-<div class="toolbar no-print">
-  <span class="label">انقر على أي رقم في التقرير لتعديله — </span>
-  <button onclick="resetNumbers()">إعادة الأرقام الأصلية</button>
-  <span class="label" id="sync-status"></span>
-  <span class="label">تصدير:</span>
-  <button onclick="exportPng('page-ar', '__AR_FILENAME__.png')">صورة PNG (عربي)</button>
-  <button onclick="exportPng('page-tr', '__TR_FILENAME__.png')">صورة PNG (Türkçe)</button>
-  <button onclick="exportPng('page-en', '__EN_FILENAME__.png')">صورة PNG (English)</button>
-  <button class="accent" onclick="exportPdf('ar', '__AR_FILENAME__')">تصدير PDF (عربي)</button>
-  <button class="accent" onclick="exportPdf('tr', '__TR_FILENAME__')">تصدير PDF (Türkçe)</button>
-  <button class="accent" onclick="exportPdf('en', '__EN_FILENAME__')">تصدير PDF (English)</button>
-</div>
-
-<div class="pages">
-__AR_SECTION__
-__TR_SECTION__
-__EN_SECTION__
-</div>
-
-<script>
-const STORAGE_PREFIX = 'guzel-eser-poster-edit:';
-const EDIT_PASSWORD_KEY = 'guzel-eser-poster-edit-password';
-
-function getStoredPassword() {
-  try { return localStorage.getItem(EDIT_PASSWORD_KEY) || ''; } catch (e) { return ''; }
-}
-function setStoredPassword(pw) {
-  try { localStorage.setItem(EDIT_PASSWORD_KEY, pw); } catch (e) {}
-}
-
-function setSyncStatus(text, isError) {
-  const el = document.getElementById('sync-status');
-  if (!el) return;
-  el.textContent = text;
-  el.style.color = isError ? '#ff8a8a' : '#9fb0c3';
-}
-
-// Pushes one edited field to the shared store (api/data.js, backed by a
-// JSON file in the GitHub repo) so every visitor sees the same values —
-// not just the browser that made the edit. Falls back to local-only
-// storage (already saved via localStorage on 'input') if this fails.
-async function syncToServer(key, value) {
-  try {
-    setSyncStatus('جارٍ الحفظ للجميع…');
-    const res = await fetch('/api/data', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Edit-Password': getStoredPassword() },
-      body: JSON.stringify({ key, value }),
-    });
-    if (res.status === 401) {
-      const pw = prompt('كلمة مرور التعديل المشترك:');
-      if (pw) { setStoredPassword(pw); return syncToServer(key, value); }
-      setSyncStatus('لم يُحفظ للجميع (كلمة مرور مطلوبة) — محفوظ في هذا الجهاز فقط', true);
-      return;
-    }
-    if (!res.ok) throw new Error('bad status ' + res.status);
-    setSyncStatus('تم الحفظ للجميع ✓');
-  } catch (e) {
-    setSyncStatus('تعذّر الحفظ للجميع — محفوظ في هذا الجهاز فقط', true);
-  }
-}
-
-async function syncReset() {
-  try {
-    setSyncStatus('جارٍ إعادة الضبط للجميع…');
-    const res = await fetch('/api/data', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Edit-Password': getStoredPassword() },
-      body: JSON.stringify({ reset: true }),
-    });
-    if (res.status === 401) {
-      const pw = prompt('كلمة مرور التعديل المشترك:');
-      if (pw) { setStoredPassword(pw); return syncReset(); }
-      setSyncStatus('لم تتم إعادة الضبط للجميع (كلمة مرور مطلوبة)', true);
-      return;
-    }
-    if (!res.ok) throw new Error('bad status ' + res.status);
-    setSyncStatus('تمت إعادة الضبط للجميع ✓');
-  } catch (e) {
-    setSyncStatus('تعذّرت إعادة الضبط للجميع', true);
-  }
-}
-
-// Pulls the shared values on load, so a device that never touched a field
-// still sees whatever the last edit (from any device) set it to.
-async function loadSharedNumbers() {
-  try {
-    const res = await fetch('/api/data', { cache: 'no-store' });
-    if (!res.ok) return;
-    const data = await res.json();
-    document.querySelectorAll('[data-key]').forEach(el => {
-      if (Object.prototype.hasOwnProperty.call(data, el.dataset.key)) {
-        el.textContent = data[el.dataset.key];
-        try { localStorage.setItem(STORAGE_PREFIX + el.dataset.key, data[el.dataset.key]); } catch (e) {}
-      }
-    });
-  } catch (e) {
-    // offline, or the shared store isn't configured yet — keep local values.
-  }
-}
-
-function loadSavedNumbers() {
-  document.querySelectorAll('[data-key]').forEach(el => {
-    const saved = localStorage.getItem(STORAGE_PREFIX + el.dataset.key);
-    if (saved !== null) el.textContent = saved;
-  });
-}
-
-function wireEditableNumbers() {
-  document.querySelectorAll('[data-key]').forEach(el => {
-    // Original value, for the reset button — captured before any restore.
-    if (!el.dataset.original) el.dataset.original = el.textContent;
-
-    el.addEventListener('input', () => {
-      localStorage.setItem(STORAGE_PREFIX + el.dataset.key, el.textContent);
-      clearTimeout(el._syncTimer);
-      el._syncTimer = setTimeout(() => syncToServer(el.dataset.key, el.textContent), 1200);
-    });
-
-    el.addEventListener('blur', () => {
-      clearTimeout(el._syncTimer);
-      syncToServer(el.dataset.key, el.textContent);
-    });
-
-    // Paste as plain text only — a contenteditable number field shouldn't
-    // pick up formatting (or a stray newline) from whatever was copied.
-    el.addEventListener('paste', (e) => {
-      e.preventDefault();
-      const text = (e.clipboardData || window.clipboardData).getData('text/plain');
-      document.execCommand('insertText', false, text);
-    });
-
-    // Enter confirms the edit instead of inserting a line break.
-    el.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') { e.preventDefault(); el.blur(); }
-    });
-  });
-}
-
-function resetNumbers() {
-  if (!confirm('سيعيد هذا كل الأرقام إلى قيمها الأصلية لدى الجميع. متابعة؟')) return;
-  document.querySelectorAll('[data-key]').forEach(el => {
-    localStorage.removeItem(STORAGE_PREFIX + el.dataset.key);
-    if (el.dataset.original) el.textContent = el.dataset.original;
-  });
-  syncReset();
-}
-
-document.addEventListener('DOMContentLoaded', () => {
-  wireEditableNumbers();
-  loadSavedNumbers();
-  loadSharedNumbers();
-});
-
-async function exportPng(id, filename) {
-  const el = document.getElementById(id);
-  const btns = document.querySelectorAll('.toolbar button');
-  btns.forEach(b => b.disabled = true);
-  try {
-    const canvas = await html2canvas(el, {
-      scale: 3, useCORS: true, backgroundColor: null,
-      onclone: (clonedDoc) => {
-        clonedDoc.querySelectorAll('[contenteditable]').forEach(n => {
-          n.style.outline = 'none';
-          n.style.background = 'none';
-        });
-      },
-    });
-    const link = document.createElement('a');
-    link.download = filename;
-    link.href = canvas.toDataURL('image/png');
-    link.click();
-  } catch (e) {
-    alert('تعذّر إنشاء الصورة: ' + e.message);
-  } finally {
-    btns.forEach(b => b.disabled = false);
-  }
-}
-
-function exportPdf(lang, titleWithoutExt) {
-  const prevTitle = document.title;
-  const cssClass = 'print-only-' + lang;
-  document.title = titleWithoutExt;
-  document.body.classList.add(cssClass);
-
-  let done = false;
-  const cleanup = () => {
-    if (done) return;
-    done = true;
-    document.body.classList.remove(cssClass);
-    document.title = prevTitle;
-    window.removeEventListener('afterprint', cleanup);
-  };
-  // afterprint fires once the print dialog closes (printed or cancelled);
-  // the timeout is only a safety net in case a browser doesn't fire it.
-  window.addEventListener('afterprint', cleanup);
-  setTimeout(cleanup, 60000);
-
-  window.print();
-}
-</script>
-
-</body>
-</html>
-"""
+def icons():
+    return {p.stem: p.read_text(encoding="utf-8").strip() for p in sorted(ICON_DIR.glob("*.svg"))}
 
 
-DATE_STYLE = "font-size:21px;font-weight:700;background:#9C1C33;border-radius:999px;padding:6px 20px"
+def qr_svg():
+    try:
+        import segno
+    except ImportError:
+        print("segno not installed: story format will have no QR code")
+        return None
+    qr = segno.make(DONATE_URL, error="m")
+    size = qr.symbol_size(scale=1, border=0)[0]
+    # Built by hand rather than with qr.svg_inline(): explicit colours (no
+    # currentColor) and a viewBox, so html2canvas draws it at any size.
+    path = []
+    for y, row in enumerate(qr.matrix):
+        for x, dark in enumerate(row):
+            if dark:
+                path.append(f"M{x} {y}h1v1h-1z")
+    return (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {size} {size}" '
+            f'width="100%" height="100%" shape-rendering="crispEdges">'
+            f'<path fill="#0E2A46" d="{"".join(path)}"/></svg>')
 
 
-def extract_date(section):
-    m = re.search(rf'style="{re.escape(DATE_STYLE)}">([^<]+)<', section)
-    return m.group(1)
-
-
-def safe_filename(name):
-    for ch in '/\\:*?"<>|':
-        name = name.replace(ch, "-")
-    return name
+def script_json(value):
+    # JSON inside an inline <script>: keep "</script>" from closing the tag.
+    return json.dumps(value, ensure_ascii=False).replace("</", "<\\/")
 
 
 def main():
-    build_web_background()
-    src = SRC.read_text(encoding="utf-8")
-    ar, tr, en = re.findall(r'<section class="page".*?</section>', src, re.S)
+    build_web_images()
+    seed = json.loads(SEED.read_text(encoding="utf-8"))
 
-    ar_date = extract_date(ar)
-    tr_date = extract_date(tr)
-    en_date = extract_date(en)
-    ar_filename = safe_filename(f"الوضع الإنساني - اليمن {ar_date}")
-    tr_filename = safe_filename(f"İnsani Durum - Yemen {tr_date}")
-    en_filename = safe_filename(f"Humanitarian Situation - Yemen {en_date}")
-    page_title = f"{ar_filename} · {tr_filename} · {en_filename}"
-
-    bg_uri = b64(BG_PHOTO_WEB, "image/jpeg")
-    logo_uri = b64(LOGO, "image/png")
-
-    ar = fix_paths(ar, bg_uri, logo_uri).replace('<section class="page"', '<section id="page-ar" class="page"', 1)
-    tr = fix_paths(tr, bg_uri, logo_uri).replace('<section class="page"', '<section id="page-tr" class="page"', 1)
-    en = fix_paths(en, bg_uri, logo_uri).replace('<section class="page"', '<section id="page-en" class="page"', 1)
-    ar = mark_editable(ar, "ar")
-    tr = mark_editable(tr, "tr")
-    en = mark_editable(en, "en")
-
-    html = PAGE_TEMPLATE
-    html = html.replace("__HTML2CANVAS_JS__", HTML2CANVAS.read_text(encoding="utf-8"))
-    html = html.replace("__FONT_FACES__", font_faces())
-    html = html.replace("__AR_SECTION__", ar)
-    html = html.replace("__TR_SECTION__", tr)
-    html = html.replace("__EN_SECTION__", en)
-    html = html.replace("__AR_FILENAME__", ar_filename)
-    html = html.replace("__TR_FILENAME__", tr_filename)
-    html = html.replace("__EN_FILENAME__", en_filename)
-    html = html.replace("__PAGE_TITLE__", page_title)
+    html = (APP / "template.html").read_text(encoding="utf-8")
+    # The libraries go in first: later tokens must never be looked for inside them.
+    replacements = [
+        ("__HTML2CANVAS_JS__", HTML2CANVAS.read_text(encoding="utf-8")),
+        ("__FFLATE_JS__", FFLATE.read_text(encoding="utf-8")),
+        ("__APP_CSS__", (APP / "app.css").read_text(encoding="utf-8")),
+        ("__APP_JS__", (APP / "app.js").read_text(encoding="utf-8")),
+        ("__FONT_FACES__", font_faces()),
+        ("__BG_URI__", b64(BG_PHOTO_WEB, "image/jpeg")),
+        ("__LOGO_URI__", b64(LOGO_WEB, "image/png")),
+        ("__SEED_JSON__", script_json(seed)),
+        ("__ICONS_JSON__", script_json(icons())),
+        ("__QR_JSON__", script_json(qr_svg())),
+        ("__SITE_LABEL__", SITE_LABEL),
+    ]
+    for token, value in replacements:
+        assert html.count(token) == 1, (token, html.count(token))
+        html = html.replace(token, value)
 
     OUT.write_text(html, encoding="utf-8")
-    print("saved", OUT, len(html) / 1024, "KB")
-    print("AR filename:", ar_filename)
-    print("TR filename:", tr_filename)
-    print("EN filename:", en_filename)
+    print("saved", OUT, round(len(html.encode("utf-8")) / 1024), "KB")
 
 
 if __name__ == "__main__":
