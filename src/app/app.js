@@ -217,6 +217,32 @@ function needsTitle(lang, r) {
   return (r.needsTitle && r.needsTitle[lang]) || '';
 }
 
+// Headings the editor can reword per report and language. Anything left
+// empty (or equal to the default) falls back to the wording in T.
+const TEXT_FIELDS = [
+  ['title', 'العنوان الرئيسي', 120],
+  ['totalLabel', 'عنوان بطاقة الإجمالي', 60],
+  ['familiesLabel', 'عنوان بطاقة الأسر', 60],
+  ['govLabel', 'عنوان بطاقة المحافظات', 60],
+  ['areasTitle', 'عنوان قسم الاحتياجات', 80],
+  ['source', 'سطر المصدر', 220],
+];
+
+function customText(lang, r, key) {
+  const v = r.texts && r.texts[key] && r.texts[key][lang];
+  return v && v.trim() ? v.trim() : '';
+}
+
+// HTML for a heading: the editor's wording (escaped) or the built-in default.
+function tx(lang, r, key) {
+  const v = customText(lang, r, key);
+  return v ? esc(v) : T[lang][key];
+}
+
+function txLength(lang, r, key) {
+  return (customText(lang, r, key) || T[lang][key]).length;
+}
+
 function posterA4(lang, r) {
   const t = T[lang], rtl = lang === 'ar', align = rtl ? 'right' : 'left';
   const n = r.governorates.length;
@@ -237,7 +263,7 @@ function posterA4(lang, r) {
     ? `<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:14px">${sub}${dot}${date}</div>`
     : `<div style="display:flex;align-items:center;gap:12px;margin-top:14px">${date}${dot}${sub}</div>`;
   const heading = (text) => {
-    const h = `<div style="font-size:26px;font-weight:700">${text}</div>`;
+    const h = `<div data-fit style="font-size:26px;font-weight:700">${text}</div>`;
     const bar = `<div style="width:38px;height:4px;border-radius:2px;background:#9C1C33;flex:0 0 auto"></div>`;
     return `<div style="display:flex;justify-content:flex-start;align-items:center;gap:12px;margin-bottom:10px">${rtl ? h + bar : bar + h}</div>`;
   };
@@ -274,7 +300,7 @@ function posterA4(lang, r) {
   <div style="position:relative;display:flex;align-items:center;justify-content:space-between;gap:20px;padding:22px 44px 0">${rtl ? logo + org : org + logo}</div>
 
   <div style="position:relative;padding:18px 44px 0;text-align:${align}">
-    <div style="font-size:${t.titleSize}px;font-weight:700;line-height:1.12">${t.title}</div>
+    <div data-fit style="font-size:${t.titleSize}px;font-weight:700;line-height:1.12">${tx(lang, r, 'title')}</div>
     ${metaRow}
   </div>
 
@@ -282,7 +308,7 @@ function posterA4(lang, r) {
     <div style="background:rgba(0,0,0,0.38);border:1px solid rgba(255,255,255,0.22);border-radius:22px;padding:14px 20px;text-align:${align};display:flex;flex-direction:column">
       <div style="display:flex;justify-content:flex-start;align-items:center;gap:12px">
         ${statIcon('users-three', 44, 26, 14)}
-        <div style="font-size:22px;font-weight:700;color:#EBC9CF">${t.totalLabel}</div>
+        <div data-fit style="font-size:22px;font-weight:700;color:#EBC9CF">${tx(lang, r, 'totalLabel')}</div>
       </div>
       <div style="flex:1;display:flex;flex-direction:column;justify-content:center">
         <div style="font-size:${totalFont}px;font-weight:700;line-height:1;letter-spacing:-2px;white-space:nowrap">${fmtNum(lang, r.total)}</div>
@@ -297,7 +323,7 @@ function posterA4(lang, r) {
       <div style="flex:1;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.22);border-radius:20px;padding:10px 18px;text-align:${align};display:flex;flex-direction:column;justify-content:center">
         <div style="display:flex;justify-content:flex-start;align-items:center;gap:10px">
           ${statIcon('house-line', 36, 22, 12)}
-          <div style="font-size:${t.familiesLabel.length > 18 ? 18 : 20}px;font-weight:700;color:#EBC9CF">${t.familiesLabel}</div>
+          <div data-fit style="font-size:${txLength(lang, r, 'familiesLabel') > 18 ? 18 : 20}px;font-weight:700;color:#EBC9CF">${tx(lang, r, 'familiesLabel')}</div>
         </div>
         <div style="font-size:40px;font-weight:700;line-height:1.05;margin-top:2px">${fmtNum(lang, r.families)}</div>
         <div style="font-size:19px;color:#E4E0DC">${t.familiesUnit}</div>
@@ -305,7 +331,7 @@ function posterA4(lang, r) {
       <div style="flex:1;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.22);border-radius:20px;padding:10px 18px;text-align:${align};display:flex;flex-direction:column;justify-content:center">
         <div style="display:flex;justify-content:flex-start;align-items:center;gap:10px">
           ${statIcon('map-pin', 36, 22, 12)}
-          <div style="font-size:${t.govLabel.length > 18 ? 18 : 20}px;font-weight:700;color:#EBC9CF">${t.govLabel}</div>
+          <div data-fit style="font-size:${txLength(lang, r, 'govLabel') > 18 ? 18 : 20}px;font-weight:700;color:#EBC9CF">${tx(lang, r, 'govLabel')}</div>
         </div>
         <div style="font-size:40px;font-weight:700;line-height:1.05;margin-top:2px">${n}</div>
         <div style="font-size:${govFont}px;line-height:1.35;color:#E4E0DC;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:${govLines};-webkit-box-orient:vertical;overflow:hidden">${esc(govList)}</div>
@@ -319,12 +345,12 @@ function posterA4(lang, r) {
   </div>
 
   <div style="position:relative;padding:18px 44px 0;text-align:${align}">
-    ${heading(t.areasTitle)}
+    ${heading(tx(lang, r, 'areasTitle'))}
     <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px">${areaCards}</div>
   </div>
 
   <div style="position:relative;margin-top:auto;padding:12px 44px 18px;text-align:${align}">
-    <div style="background:rgba(0,0,0,0.34);border:1px solid rgba(255,255,255,0.18);border-radius:18px;padding:${long ? '12px 18px' : '14px 20px'};font-size:${long ? 16 : 18}px;line-height:1.5;color:#E4E0DC">${t.source}</div>
+    <div style="background:rgba(0,0,0,0.34);border:1px solid rgba(255,255,255,0.18);border-radius:18px;padding:${long ? '12px 18px' : '14px 20px'};font-size:${long ? 16 : 18}px;line-height:1.5;color:#E4E0DC" data-fit>${tx(lang, r, 'source')}</div>
   </div>
 </section>`;
 }
@@ -349,10 +375,10 @@ function posterPost(lang, r) {
   const sub = `<span style="font-size:14px;color:#E4E0DC">${esc(subtitle(lang, r))}</span>`;
   return `<section class="poster poster-post" dir="${rtl ? 'rtl' : 'ltr'}" lang="${lang}" style="text-align:${align}">
     ${socialHead(rtl)}
-    <div style="font-size:${rtl ? 27 : 24}px;font-weight:700;margin-top:18px;line-height:1.2">${t.title}</div>
+    <div data-fit style="font-size:${rtl ? 27 : 24}px;font-weight:700;margin-top:18px;line-height:1.2">${tx(lang, r, 'title')}</div>
     <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:8px">${rtl ? sub + date : date + sub}</div>
     <div style="margin-top:${rtl ? 24 : 16}px">
-      <div style="font-size:17px;color:#EBC9CF;font-weight:700">${t.totalLabel}</div>
+      <div data-fit style="font-size:17px;color:#EBC9CF;font-weight:700">${tx(lang, r, 'totalLabel')}</div>
       <div style="font-size:80px;font-weight:700;line-height:1;letter-spacing:-2px">${fmtNum(lang, r.total)}</div>
       <div style="font-size:16px;color:#E4E0DC;margin-top:4px">${t.totalUnit} · ${fmtNum(lang, r.families)} ${t.familiesUnit}</div>
     </div>
@@ -361,7 +387,7 @@ function posterPost(lang, r) {
       ${NEEDS.map((k) => needTile(lang, r, k, false)).join('')}
     </div>
     <div style="margin-top:auto;display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:12px;color:#E4E0DC">
-      <span>${t.sourceShort}</span><b style="color:#fff;direction:ltr">${SITE_LABEL}</b>
+      <span data-fit style="font-size:12px">${customText(lang, r, 'source') ? esc(customText(lang, r, 'source')) : t.sourceShort}</span><b style="color:#fff;direction:ltr">${SITE_LABEL}</b>
     </div>
   </section>`;
 }
@@ -373,10 +399,10 @@ function posterStory(lang, r) {
     : '';
   return `<section class="poster poster-story" dir="${rtl ? 'rtl' : 'ltr'}" lang="${lang}" style="text-align:${align}">
     ${socialHead(rtl)}
-    <div style="font-size:${rtl ? 29 : 27}px;font-weight:700;margin-top:24px;line-height:1.2">${t.storyTitle}</div>
+    <div data-fit style="font-size:${rtl ? 29 : 27}px;font-weight:700;margin-top:24px;line-height:1.2">${customText(lang, r, 'title') ? esc(customText(lang, r, 'title')) : t.storyTitle}</div>
     <div style="margin-top:12px"><span style="background:#9C1C33;border-radius:999px;padding:5px 14px;font-size:14px;font-weight:700;white-space:nowrap">${esc(fmtRange(lang, r.start, r.end))}</span></div>
     <div style="margin-top:22px;text-align:center">
-      <div style="font-size:17px;color:#EBC9CF;font-weight:700">${t.totalLabel}</div>
+      <div data-fit style="font-size:17px;color:#EBC9CF;font-weight:700">${tx(lang, r, 'totalLabel')}</div>
       <div style="font-size:84px;font-weight:700;line-height:1;letter-spacing:-2px">${fmtNum(lang, r.total)}</div>
       <div style="font-size:18px;color:#E4E0DC;margin-top:4px">${t.totalUnit} · ${fmtNum(lang, r.families)} ${t.familiesUnit}</div>
       <div style="font-size:14px;color:#E4E0DC;margin-top:2px">${esc(subtitle(lang, r))}</div>
@@ -389,6 +415,21 @@ function posterStory(lang, r) {
       ${qr}<div><div style="font-weight:700;font-size:16px">${t.support}</div><div style="font-size:13px;direction:ltr;text-align:${align}">${SITE_LABEL}</div></div>
     </div>
   </section>`;
+}
+
+// Long headings typed by an editor can push content past the poster's fixed
+// height: shrink the shrinkable texts step by step (down to half) until the
+// poster fits again.
+function fitPoster(el) {
+  const items = [...el.querySelectorAll('[data-fit]')];
+  const base = items.map((n) => parseFloat(n.style.fontSize) || parseFloat(getComputedStyle(n).fontSize));
+  for (let k = 1; k <= 10 && el.scrollHeight > el.clientHeight + 1; k++) {
+    items.forEach((n, i) => { n.style.fontSize = base[i] * (1 - k * 0.05) + 'px'; });
+  }
+}
+
+function fitPosters(root) {
+  root.querySelectorAll('.poster').forEach(fitPoster);
 }
 
 function posterHTML(format, lang, r) {
@@ -576,6 +617,7 @@ function renderStage() {
   const langs = state.lang === 'all' ? LANGS : [state.lang];
   stage.classList.toggle('stack', state.format === 'a4');
   stage.innerHTML = langs.map((l) => `<div><div class="fit">${posterHTML(state.format, l, r)}</div>${state.lang === 'all' ? `<div class="fit-label">${T[l].langName}</div>` : ''}</div>`).join('');
+  fitPosters(stage);
   fitAll();
 }
 
@@ -625,6 +667,7 @@ function renderArchive() {
       </div>
     </div>
     <div class="archive-grid">${cards}</div>`;
+  fitPosters(box);
   fitAll();
 }
 
@@ -724,21 +767,23 @@ function renderPanel() {
     </div>
 
     <div class="field">
-      <label for="f-title-ar">عنوان قسم النسب</label>
-      <input class="inp small" id="f-title-ar" value="${esc(d.needsTitle.ar)}" maxlength="80">
-      <details class="tr-titles">
-        <summary>الترجمة: ${esc(d.needsTitle.tr)} · ${esc(d.needsTitle.en)}</summary>
-        <input class="inp small" id="f-title-tr" dir="ltr" value="${esc(d.needsTitle.tr)}" maxlength="80" aria-label="Türkçe">
-        <input class="inp small" id="f-title-en" dir="ltr" value="${esc(d.needsTitle.en)}" maxlength="80" aria-label="English">
-      </details>
-    </div>
-
-    <div class="field">
       <div class="flabel">النسب (٪)</div>
       <div class="row4">
         ${NEEDS.map((k) => `<label class="need-inp"><span>${T.ar.need[k].item}</span><input id="f-need-${k}" inputmode="numeric" autocomplete="off" value="${d.needs[k]}" aria-label="${T.ar.need[k].item}"></label>`).join('')}
       </div>
     </div>
+
+    <details class="texts" id="texts-box"${state.textsOpen ? ' open' : ''}>
+      <summary>العناوين والنصوص <span>— ${state.lang === 'all' ? 'اللغات الثلاث' : T[state.lang].langName}</span></summary>
+      <div class="seg text-langs" role="tablist" aria-label="لغة النصوص">
+        ${[...LANGS, 'all'].map((l) => `<button type="button" data-text-lang="${l}" aria-selected="${state.lang === l}">${l === 'all' ? 'الكل' : T[l].langName}</button>`).join('')}
+      </div>
+      <div class="hint" style="margin:0 0 12px">تعدّل نصوص اللغة المعروضة فقط — بدّل اللغة من هنا أو من الأعلى.</div>
+      ${textInputs('title-needs', 'عنوان قسم النسب', 80, (l) => d.needsTitle[l], (l) => '')}
+      ${TEXT_FIELDS.map(([key, label, max]) => textInputs(`text-${key}`, label, max,
+        (l) => customText(l, d, key) || plainDefault(l, key), (l) => plainDefault(l, key))).join('')}
+      <div class="hint">اترك الحقل فارغاً ليعود للنص الأصلي.</div>
+    </details>
 
     <div class="panel-actions">
       <button class="btn accent" type="button" id="panel-save">حفظ ونشر للجميع</button>
@@ -749,6 +794,22 @@ function renderPanel() {
       ${state.draftIsNew ? '' : '<button class="linkish danger" type="button" id="panel-delete">حذف هذا التقرير</button>'}
     </div>`;
   updatePreviews();
+}
+
+function plainDefault(lang, key) {
+  const box = document.createElement('div');
+  box.innerHTML = T[lang][key];
+  return box.textContent;
+}
+
+// The heading fields follow the language being viewed: on the Turkish tab
+// only the Turkish wording is shown, and so on ("all" shows the three).
+function textInputs(idBase, label, max, value, placeholder) {
+  const langs = state.lang === 'all' ? LANGS : [state.lang];
+  return `<div class="field text-field${langs.length === 1 ? ' single' : ''}">
+    <div class="flabel">${label}</div>
+    ${langs.map((l) => `<div class="lang-inp"><b>${l === 'ar' ? 'ع' : l.toUpperCase()}</b><input class="inp small" id="f-${idBase}-${l}" dir="${l === 'ar' ? 'rtl' : 'ltr'}" maxlength="${max}" value="${esc(value(l))}" placeholder="${esc(placeholder(l))}" aria-label="${label} ${T[l].langName}"></div>`).join('')}
+  </div>`;
 }
 
 function updatePreviews() {
@@ -778,8 +839,13 @@ function onPanelInput(e) {
   } else if (id === 'f-total' || id === 'f-families') {
     const v = readInt(e.target.value);
     d[id === 'f-total' ? 'total' : 'families'] = v === null ? 0 : v;
-  } else if (id.startsWith('f-title-')) {
-    d.needsTitle[id.slice(8)] = e.target.value;
+  } else if (id.startsWith('f-title-needs-')) {
+    d.needsTitle[id.slice(14)] = e.target.value;
+  } else if (id.startsWith('f-text-')) {
+    const [key, lang] = id.slice(7).split('-');
+    d.texts = d.texts || {};
+    d.texts[key] = d.texts[key] || {};
+    d.texts[key][lang] = e.target.value;
   } else if (id.startsWith('f-need-')) {
     const v = readInt(e.target.value);
     d.needs[id.slice(7)] = v === null ? 0 : Math.min(100, v);
@@ -813,6 +879,13 @@ function savePanel() {
   const report = cloneReport(d);
   report.id = report.start;
   report.needsTitle = { ar: d.needsTitle.ar.trim(), tr: d.needsTitle.tr.trim(), en: d.needsTitle.en.trim() };
+  // Keep only wording that actually differs from the default.
+  const texts = {};
+  TEXT_FIELDS.forEach(([key]) => LANGS.forEach((l) => {
+    const v = customText(l, d, key);
+    if (v && v !== plainDefault(l, key)) (texts[key] = texts[key] || {})[l] = v;
+  }));
+  if (Object.keys(texts).length) report.texts = texts; else delete report.texts;
   report.updatedAt = new Date().toISOString();
   state.reports = sortReports([report, ...state.reports.filter((r) => r.id !== report.id && r.id !== previousId)]);
   state.currentId = report.id;
@@ -858,6 +931,7 @@ async function renderCanvas(format, lang, r, scale) {
   const el = host.firstElementChild;
   if (document.fonts && document.fonts.ready) await document.fonts.ready;
   await Promise.all([...el.querySelectorAll('img')].map((img) => (img.decode ? img.decode().catch(() => {}) : null)));
+  fitPoster(el);
   try {
     return await html2canvas(el, { scale, useCORS: true, backgroundColor: '#0b1420', logging: false });
   } finally {
@@ -1013,6 +1087,7 @@ function wire() {
     const b = e.target.closest('[data-lang]');
     if (!b) return;
     state.lang = b.dataset.lang;
+    if (state.draft) renderPanel();
     renderAll();
   });
   $('#format-tabs').addEventListener('click', (e) => {
@@ -1067,6 +1142,10 @@ function wire() {
 
   const panel = $('#panel');
   panel.addEventListener('input', onPanelInput);
+  // Remember whether the headings group is open across panel re-renders.
+  panel.addEventListener('toggle', (e) => {
+    if (e.target.id === 'texts-box') state.textsOpen = e.target.open;
+  }, true);
   panel.addEventListener('change', (e) => {
     if (e.target.id === 'f-add-gov' && e.target.value) {
       state.draft.governorates.push(e.target.value);
@@ -1080,6 +1159,13 @@ function wire() {
       state.draft.governorates = state.draft.governorates.filter((g) => g !== rm.dataset.removeGov);
       renderPanel();
       schedulePreview();
+      return;
+    }
+    const tl = e.target.closest('[data-text-lang]');
+    if (tl) {
+      state.lang = tl.dataset.textLang;
+      renderPanel();
+      renderAll();
       return;
     }
     const id = e.target.id;
@@ -1097,7 +1183,8 @@ function wire() {
   // An open page picks up other people's saves without a manual reload.
   setInterval(fetchShared, 30000);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) fetchShared(); });
-  if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitAll);
+  // Text fitting measures the fonts, so lay out again once they are ready.
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(renderAll);
 }
 
 function init() {
